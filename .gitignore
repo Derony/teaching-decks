@@ -1,0 +1,23 @@
+# Google Drive 系統檔
+desktop.ini
+*.tmp
+~$*
+
+# 敏感資料
+.env
+*.key
+credentials.*
+
+# Claude Code 本地設定（含 token，絕不上雲）
+.claude/
+
+# 原始教材與萃取稿（可能含校內資料，不上公開 repo）
+input/
+extracted/
+
+# AI 生圖原始 PNG 備份（已 base64 內嵌進 html，不必上雲）
+**/slides/generated/
+
+# Node.js
+node_modules/
+package-lock.json
