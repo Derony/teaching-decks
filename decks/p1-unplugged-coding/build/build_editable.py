@@ -293,16 +293,19 @@ let i=0,step=0;const W={W},H={H};
 function fit(){{const s=Math.min(innerWidth/W,innerHeight/H);deck.style.transform=`scale(${{s}})`;}}
 function steps(){{return ANIM[i+1]||[];}}
 function tgt(o,fn){{slides[i].querySelectorAll(`[data-spid="${{o.spid}}"]`).forEach(fn);}}
+function pathEnd(p){{const t=p.replace(/[ML]/g,' ').trim().split(/\\s+/).map(Number);return [t[t.length-2]*W,t[t.length-1]*H];}}
 function hide(o){{tgt(o,el=>{{
   if(o.para)el.querySelectorAll('.para').forEach((p,k)=>{{if(k>=o.para[0]&&k<=o.para[1])p.style.opacity=0;}});
-  else el.style.opacity=0;
+  else {{el.style.opacity=0;if(o.path)el.style.transform='translate(0px,0px)';}}
 }});}}
-function reveal(o){{tgt(o,el=>{{
-  if(o.para)el.querySelectorAll('.para').forEach((p,k)=>{{if(k>=o.para[0]&&k<=o.para[1]){{p.style.transition='opacity .4s ease';p.style.opacity=1;}}}});
-  else {{el.style.transition='opacity .45s ease';el.style.opacity=1;}}
+// idx=同一擊內第幾個元素 → stagger 依序出現，避免一次全冒出
+function reveal(o,idx){{const d=(idx||0)*0.18;tgt(o,el=>{{
+  if(o.para){{el.querySelectorAll('.para').forEach((p,k)=>{{if(k>=o.para[0]&&k<=o.para[1]){{p.style.transition=`opacity .6s ease ${{d}}s`;p.style.opacity=1;}}}});}}
+  else if(o.path){{const e=pathEnd(o.path);el.style.transition=`opacity .5s ease ${{d}}s, transform 1.3s ease ${{d}}s`;el.style.opacity=1;el.style.transform=`translate(${{e[0]}}px,${{e[1]}}px)`;}}
+  else {{el.style.transition=`opacity .7s ease ${{d}}s`;el.style.opacity=1;}}
 }});}}
 function resetAnim(){{step=0;steps().forEach(a=>a.forEach(hide));}}
-function playStep(){{const s=steps();if(step>=s.length)return false;s[step].forEach(reveal);step++;return true;}}
+function playStep(){{const s=steps();if(step>=s.length)return false;s[step].forEach((o,idx)=>reveal(o,idx));step++;return true;}}
 function show(n,rev){{i=(n+slides.length)%slides.length;slides.forEach((s,k)=>s.classList.toggle('active',k===i));
   document.getElementById('pg').textContent=`第 ${{i+1}}/${{slides.length}} 頁`+(steps().length?` · 第 ${{step}}/${{steps().length}} 擊`:'');
   resetAnim();if(rev)while(playStep()){{}}}}
