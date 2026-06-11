@@ -204,14 +204,30 @@ def render_shape(shape, pool):
     if shape.get("prst") == "ellipse":
         deco += "border-radius:50%;"
 
+    # preset 幾何 → 嘗試精繪 SVG（雙箭頭/語音泡泡/卷軸等 callout）
+    pw, ph = px(xfrm["cx"]), px(xfrm["cy"])
+    svg_inner = ""
+    if shape.get("geom") == "preset" and shape.get("prst"):
+        fill, stroke, sw = preset_style(shape)
+        svg_inner = preset_svg(shape["prst"], pw, ph, fill=fill, stroke=stroke, stroke_w=sw)
+
     # A 類：有文字 → 真文字 div（可同時帶色塊/邊框）；anchor 控垂直對齊
     if shape.get("text"):
         anc = {"ctr": "center", "b": "flex-end"}.get(shape.get("anchor"), "flex-start")
+        if svg_inner:   # 形狀由 SVG 畫底層，文字疊上（不套 rect deco）
+            bgsvg = (f'<svg viewBox="0 0 {pw} {ph}" preserveAspectRatio="none" '
+                     f'style="position:absolute;inset:0;width:100%;height:100%;overflow:visible">{svg_inner}</svg>')
+            txt = (f'<div style="position:absolute;inset:0;display:flex;flex-direction:column;'
+                   f'justify-content:{anc}">{render_text(shape)}</div>')
+            return f'<div class="obj txt"{sid} style="{style}">{bgsvg}{txt}</div>'
         return (f'<div class="obj txt"{sid} style="{style}{deco}'
                 f'display:flex;flex-direction:column;justify-content:{anc}">{render_text(shape)}</div>')
 
-    # C 類：preset 形狀——有填色/邊框就畫，否則淡占位（如 callout 走主題色，待優化）
+    # C 類：preset 形狀——能精繪就出 SVG，否則有填色/邊框畫色塊，再否則淡占位
     if shape.get("geom") == "preset":
+        if svg_inner:   # 精繪 SVG（如封面上下雙箭頭）
+            return (f'<svg class="obj"{sid} viewBox="0 0 {pw} {ph}" width="{pw}" height="{ph}" '
+                    f'style="{style}overflow:visible">{svg_inner}</svg>')
         if deco:
             return f'<div class="obj shape"{sid} style="{style}{deco}"></div>'
         return (f'<div class="obj shape-ph"{sid} data-prst="{shape.get("prst")}" style="{style}" '

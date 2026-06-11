@@ -21,3 +21,11 @@ extracted/
 # Node.js
 node_modules/
 package-lock.json
+
+# Python 快取
+__pycache__/
+*.pyc
+
+# OpenCode 派工暫存（結論契約＋過程日誌，不上雲）
+.oc-result.md
+.oc-run-*.log
