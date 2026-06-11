@@ -15,6 +15,33 @@ except Exception:
 EMU_PX = 12700.0          # 1px = 12700 EMU（=1pt，設計畫布 1pt=1px）
 JH = '"Microsoft JhengHei","微軟正黑體","PingFang TC","Heiti TC","Noto Sans TC",sans-serif'
 
+try:
+    from preset_svg import preset_svg   # PowerPoint preset 幾何 → 內嵌 SVG（callout/scroll 等）
+except Exception:
+    def preset_svg(*a, **k):            # 缺檔時退回占位框
+        return ""
+
+# fill=null 但 nofill=false 的裝飾型 preset：原檔吃主題填色，這裡給忠於算圖的回退色
+PRESET_FILL = {
+    "leftRightArrowCallout": "#a9c8e5",   # 封面上下雙箭頭：淡藍
+    "wedgeEllipseCallout": "#ffffff",     # 語音泡泡：白底（配紫框）
+    "horizontalScroll": "#fce9d6",        # 指令橫幅：米色卷軸
+}
+
+
+def preset_style(shape):
+    """preset 形狀的 (fill, stroke, stroke_w)：自身有填色優先，否則回退主題色。"""
+    if shape.get("fill"):
+        fill = f'#{shape["fill"]}'
+    elif shape.get("nofill"):
+        fill = "none"
+    else:
+        fill = PRESET_FILL.get(shape.get("prst"), "#e8eef7")
+    ln = shape.get("ln") or {}
+    stroke = f'#{ln["color"]}' if ln.get("color") else None
+    sw = round((ln.get("w") or 0) / 12700, 1) if ln.get("color") else 0
+    return fill, stroke, sw
+
 
 def px(emu):
     return round((emu or 0) / EMU_PX, 2)
@@ -104,6 +131,9 @@ def render_text(shape):
                 st.append("font-style:italic")
             if run.get("color"):
                 st.append(f"color:#{run['color']}")
+            if run.get("hl"):   # 字元螢光標示（黃色高亮等）
+                st.append(f"background-color:#{run['hl']}")
+                st.append("border-radius:2px;box-decoration-break:clone")
             if run.get("face"):
                 st.append(f'font-family:"{run["face"]}",{JH}')
             spans.append(f'<span style="{";".join(st)}">{t}</span>')

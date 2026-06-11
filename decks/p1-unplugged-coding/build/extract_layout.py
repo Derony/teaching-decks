@@ -66,7 +66,7 @@ def parse_ln(spPr):
 
 
 def parse_text(txBody):
-    """txBody → 段落陣列。每段 {algn, lvl, runs:[{t,sz,b,i,color,face}]}。無文字回 []。"""
+    """txBody → 段落陣列。每段 {algn, lvl, runs:[{t,sz,b,i,color,hl,face}]}。無文字回 []。"""
     if txBody is None:
         return []
     paras = []
@@ -97,6 +97,9 @@ def parse_text(txBody):
                 col = first_srgb(rPr.find(a("solidFill")))
                 if col:
                     run["color"] = col
+                hl = first_srgb(rPr.find(a("highlight")))   # 字元螢光標示（如黃色高亮）
+                if hl:
+                    run["hl"] = hl
                 latin = rPr.find(a("latin"))
                 if latin is not None and latin.get("typeface"):
                     run["face"] = latin.get("typeface")
