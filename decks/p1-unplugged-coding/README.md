@@ -30,13 +30,16 @@
 ```
 p1-unplugged-coding/
 ├── slides.html              ← 成品（base64 內嵌，可單檔分享）
+├── slides_editable.html     ← 結構化可編輯復刻版（文字/物件分層，約 2.5MB）★
 ├── slides.template.html     ← 可編輯原始碼（圖片是 __IMG_*__ token）
 ├── slides/
 │   ├── generated/           ← Gemini NB2 生成的 3 張圖（封面/嚮導/慶祝）
 │   └── source/              ← 沿用原 PPT 的校園手繪圖（地圖＋3 棟建築）
 ├── build/
 │   ├── extract_pptx.py      ← 從 .pptx 萃取文字＋媒體
-│   └── embed_images.py      ← 壓縮＋base64 把圖內嵌進 template → slides.html
+│   ├── embed_images.py      ← 壓縮＋base64 把圖內嵌進 template → slides.html
+│   ├── extract_layout.py    ← .pptx 每頁物件幾何/文字/字型/圖片 → layout.json ★
+│   └── build_editable.py    ← layout.json → 去重壓縮的可編輯 HTML ★
 └── README.md
 ```
 
@@ -47,3 +50,22 @@ p1-unplugged-coding/
 3. 要換圖：把新圖丟進 `slides/generated/`（用 `draw` 技能生），或換 `slides/source/` 裡的原圖
 
 > 互動地圖的建築座標、顏色定義在 template 內 `const BLD = {...}`，可自行調整位置與配色。
+
+## 可編輯結構化復刻版（slides_editable.html）
+
+不同於 `slides.html` 把每頁壓成圖片，這版**逐物件還原**原 PPT：文字保留為真文字
+（字型/字級/行距/對齊）、圖片獨立、形狀向量化（箭頭/圈/色塊用 SVG/CSS）、手寫 Ink
+取 PowerPoint 內建的光柵 fallback。原始碼結構清晰，方便二次優化。
+
+改了原 PPT 或想重跑時：
+
+```
+python build/extract_layout.py  input/P1_培正地圖_不插電編程.pptx \
+    extracted/P1_培正地圖_不插電編程/layout.json
+python build/build_editable.py  extracted/P1_培正地圖_不插電編程/layout.json \
+    extracted/P1_培正地圖_不插電編程/media  slides_editable.html
+```
+
+- 設計畫布 1440×810px（EMU÷12700，1pt=1px），整體 CSS `scale` 適配視窗
+- 圖片去重（同檔只存一份 base64，JS 還原）＋壓縮，單檔約 2.5MB
+- 待優化：callout 雙箭頭精繪、文字主題色高亮、進入/路徑動畫
