@@ -81,7 +81,7 @@ def render_text(shape):
     """A 類：文字框 → contenteditable div，逐段逐 run 還原字型/字級/粗體/顏色/對齊。"""
     paras = shape.get("text") or []
     body = []
-    for para in paras:
+    for pi, para in enumerate(paras):
         algn = {"ctr": "center", "r": "right", "just": "justify"}.get(para.get("algn"), "left")
         ls = ""
         lnspc = para.get("lnspc")
@@ -107,7 +107,7 @@ def render_text(shape):
             if run.get("face"):
                 st.append(f'font-family:"{run["face"]}",{JH}')
             spans.append(f'<span style="{";".join(st)}">{t}</span>')
-        body.append(f'<div class="para" style="text-align:{algn}{ls}">{"".join(spans) or "<br>"}</div>')
+        body.append(f'<div class="para" data-pi="{pi}" style="text-align:{algn}{ls}">{"".join(spans) or "<br>"}</div>')
     return "".join(body)
 
 
@@ -143,7 +143,7 @@ def render_connector(shape):
         mk = (f'<defs><marker id="{mid}" markerWidth="9" markerHeight="9" refX="7" refY="3" '
               f'orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="{color}"/></marker></defs>')
         end = f'marker-end="url(#{mid})"'
-    return (f'<svg class="obj cxn" style="left:{left}px;top:{top}px;overflow:visible" '
+    return (f'<svg class="obj cxn" data-spid="{shape.get("id")}" style="left:{left}px;top:{top}px;overflow:visible" '
             f'width="{max(w,1)}" height="{max(h,1)}">{mk}'
             f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{color}" '
             f'stroke-width="{sw}" stroke-linecap="round" {end}/></svg>')
@@ -157,10 +157,11 @@ def render_shape(shape, pool):
     if not xfrm:
         return ""  # 無幾何（如純背景群組屬性）跳過
     style = box_style(xfrm) + rot_style(xfrm)
+    sid = f' data-spid="{shape.get("id")}"'
 
     # B 類：任何帶 image 的（pic 或 blipFill sp），image 已由 resolve_images 解成 _img
     if shape.get("_img"):
-        return (f'<img class="obj img" style="{style}" data-k="{pool.ref(shape["_img"])}" '
+        return (f'<img class="obj img"{sid} style="{style}" data-k="{pool.ref(shape["_img"])}" '
                 f'alt="{html.escape(shape.get("name") or "")}" draggable="false">')
 
     # 形狀填色/邊框（ellipse 再加圓角）
@@ -176,20 +177,20 @@ def render_shape(shape, pool):
     # A 類：有文字 → 真文字 div（可同時帶色塊/邊框）；anchor 控垂直對齊
     if shape.get("text"):
         anc = {"ctr": "center", "b": "flex-end"}.get(shape.get("anchor"), "flex-start")
-        return (f'<div class="obj txt" style="{style}{deco}'
+        return (f'<div class="obj txt"{sid} style="{style}{deco}'
                 f'display:flex;flex-direction:column;justify-content:{anc}">{render_text(shape)}</div>')
 
     # C 類：preset 形狀——有填色/邊框就畫，否則淡占位（如 callout 走主題色，待優化）
     if shape.get("geom") == "preset":
         if deco:
-            return f'<div class="obj shape" style="{style}{deco}"></div>'
-        return (f'<div class="obj shape-ph" data-prst="{shape.get("prst")}" style="{style}" '
+            return f'<div class="obj shape"{sid} style="{style}{deco}"></div>'
+        return (f'<div class="obj shape-ph"{sid} data-prst="{shape.get("prst")}" style="{style}" '
                 f'title="{html.escape(shape.get("name") or "")} [{shape.get("prst")}]"></div>')
 
     # D 類 custom / 其他：有裝飾就畫，否則淡占位
     if deco:
-        return f'<div class="obj shape" style="{style}{deco}"></div>'
-    return (f'<div class="obj other-ph" style="{style}" '
+        return f'<div class="obj shape"{sid} style="{style}{deco}"></div>'
+    return (f'<div class="obj other-ph"{sid} style="{style}" '
             f'title="{html.escape(shape.get("name") or "")}"></div>')
 
 
@@ -232,6 +233,9 @@ def flatten_group(grp, ox=0, oy=0):
 def main():
     layout_p, media_dir, outp = sys.argv[1], sys.argv[2], sys.argv[3]
     data = json.load(open(layout_p, encoding="utf-8"))
+    anim_path = os.path.join(os.path.dirname(layout_p), "anim.json")
+    anim = json.load(open(anim_path, encoding="utf-8")) if os.path.exists(anim_path) else []
+    anim_by_slide = {p["slide"]: p["steps"] for p in anim}
     pool = ImagePool(media_dir)
     sz = data["slideSize"]
     W, H = px(sz["cx"]), px(sz["cy"])
@@ -253,6 +257,7 @@ def main():
         )
 
     imgs_json = json.dumps(pool.build_dict(), ensure_ascii=True)   # 去重後的圖片字典
+    anim_json = json.dumps(anim_by_slide, ensure_ascii=False)      # 每頁動畫「擊」序列
     doc = f"""<!DOCTYPE html>
 <html lang="zh-Hant"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -282,15 +287,31 @@ def main():
 <script>
 const IMGS={imgs_json};
 document.querySelectorAll('img[data-k]').forEach(i=>{{i.src=IMGS[i.dataset.k]||'';}});
+const ANIM={anim_json};
 const deck=document.getElementById('deck'),slides=[...document.querySelectorAll('.slide')];
-let i=0;const W={W},H={H};
+let i=0,step=0;const W={W},H={H};
 function fit(){{const s=Math.min(innerWidth/W,innerHeight/H);deck.style.transform=`scale(${{s}})`;}}
-function show(n){{i=(n+slides.length)%slides.length;slides.forEach((s,k)=>s.classList.toggle('active',k===i));
-  document.getElementById('pg').textContent=`第 ${{i+1}}/${{slides.length}} 頁`;}}
+function steps(){{return ANIM[i+1]||[];}}
+function tgt(o,fn){{slides[i].querySelectorAll(`[data-spid="${{o.spid}}"]`).forEach(fn);}}
+function hide(o){{tgt(o,el=>{{
+  if(o.para)el.querySelectorAll('.para').forEach((p,k)=>{{if(k>=o.para[0]&&k<=o.para[1])p.style.opacity=0;}});
+  else el.style.opacity=0;
+}});}}
+function reveal(o){{tgt(o,el=>{{
+  if(o.para)el.querySelectorAll('.para').forEach((p,k)=>{{if(k>=o.para[0]&&k<=o.para[1]){{p.style.transition='opacity .4s ease';p.style.opacity=1;}}}});
+  else {{el.style.transition='opacity .45s ease';el.style.opacity=1;}}
+}});}}
+function resetAnim(){{step=0;steps().forEach(a=>a.forEach(hide));}}
+function playStep(){{const s=steps();if(step>=s.length)return false;s[step].forEach(reveal);step++;return true;}}
+function show(n,rev){{i=(n+slides.length)%slides.length;slides.forEach((s,k)=>s.classList.toggle('active',k===i));
+  document.getElementById('pg').textContent=`第 ${{i+1}}/${{slides.length}} 頁`+(steps().length?` · 第 ${{step}}/${{steps().length}} 擊`:'');
+  resetAnim();if(rev)while(playStep()){{}}}}
+function advance(){{if(!playStep())show(i+1);
+  else document.getElementById('pg').textContent=`第 ${{i+1}}/${{slides.length}} 頁 · 第 ${{step}}/${{steps().length}} 擊`;}}
 addEventListener('resize',fit);
 addEventListener('keydown',e=>{{
-  if(e.key==='ArrowRight'||e.key===' ')show(i+1);
-  else if(e.key==='ArrowLeft')show(i-1);
+  if(e.key==='ArrowRight'||e.key===' ')advance();
+  else if(e.key==='ArrowLeft')show(i-1,true);
   else if(e.key==='f'||e.key==='F'){{if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();}}
 }});
 fit();show(0);
