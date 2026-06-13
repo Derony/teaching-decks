@@ -79,9 +79,9 @@ const COLOR={H:'#2ec97a',A:'#ff5d6c',C:'#15c0c9',E:'#1e9bff'};
 // cell:[row,col] 1-based；map:[xfrac,yfrac] 地圖上估算位置；span:跨格說明
 const B={
   H:{cell:[1,1],map:[0.15,0.14],span:''},
-  A:{cell:[3,3],map:[0.52,0.50],span:'A 座跨 2 格（三、四欄）→ 只選 1 格'},
-  C:{cell:[2,4],map:[0.70,0.32],span:'C 座跨 2 格（四、五欄）→ 只選 1 格'},
-  E:{cell:[3,1],map:[0.15,0.50],span:'E 座跨 2 格（丙、丁列）→ 只選 1 格'},
+  A:{cell:[3,3],map:[0.51,0.50],span:'A 座跨多格，只選 1 個 → 填在 丙三'},
+  C:{cell:[2,5],map:[0.86,0.32],span:'C 座跨多格，只選 1 個 → 填在 乙五'},
+  E:{cell:[4,1],map:[0.15,0.69],span:'E 座跨多格，只選 1 個 → 填在 丁一'},
 };
 // 建 5x5
 const grid=document.getElementById('grid5');
@@ -91,10 +91,11 @@ for(let r=1;r<=5;r++)for(let c=1;c<=5;c++){
 }
 // 預填 H
 function fill(k){
-  const b=B[k];const cell=cells[`${b.cell[0]},${b.cell[1]}`];
+  const b=B[k];const r=b.cell[0],c=b.cell[1];const cell=cells[`${r},${c}`];
   cell.textContent=k;cell.style.background=COLOR[k];cell.classList.add('filled');
   const ring=document.getElementById('ring-'+k);
-  ring.style.left=(b.map[0]*100)+'%';ring.style.top=(b.map[1]*100)+'%';
+  // 地圖格線實測＝整圖均分 5×5（0.2/0.4/0.6/0.8），格中心＝(idx-0.5)*20%
+  ring.style.left=((c-0.5)*20)+'%';ring.style.top=((r-0.5)*20)+'%';
   ring.style.borderColor=COLOR[k];ring.classList.add('show');
   document.getElementById('note').textContent=b.span||(k+' 座已填好。');
 }
