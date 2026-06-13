@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>P6 prototype — 甲案：地圖＋5×5</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;background:#eef1f6;color:#222;padding:20px}
+.wrap{max-width:1100px;margin:0 auto}
+h1{font-size:20px;margin-bottom:4px}
+.sub{color:#777;font-size:13px;margin-bottom:16px}
+.stage{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
+.panel{background:#fff;border-radius:14px;padding:14px;box-shadow:0 6px 18px rgba(0,0,0,.08)}
+.panel h2{font-size:16px;margin-bottom:10px;color:#444}
+/* 地圖 */
+.mapbox{position:relative}
+.mapbox img{width:100%;display:block;border-radius:8px}
+.ring{position:absolute;width:17%;height:16%;border:5px solid #ff3b3b;border-radius:50%;
+  transform:translate(-50%,-50%);opacity:0;transition:opacity .25s;pointer-events:none;box-shadow:0 0 0 3px rgba(255,59,59,.25)}
+.ring.show{opacity:1}
+/* 5x5 */
+.grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;aspect-ratio:1/1}
+.g5cell{border:2px solid #cfd6e4;border-radius:7px;display:flex;align-items:center;justify-content:center;
+  font-family:Arial;font-weight:700;font-size:30px;color:#fff;background:#f6f8fc;transition:background .2s}
+.g5cell.filled{box-shadow:inset 0 0 0 3px #fff}
+.rowlab,.collab{font-size:13px;color:#999;display:flex;align-items:center;justify-content:center;font-weight:700}
+.gridwrap{display:grid;grid-template-columns:22px 1fr;grid-template-rows:22px 1fr;gap:4px}
+/* 按鈕 */
+.btns{margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.bbtn{border:none;cursor:pointer;color:#fff;font-weight:700;font-size:18px;padding:10px 20px;border-radius:10px;
+  box-shadow:0 4px 0 rgba(0,0,0,.15)}
+.bbtn:active{transform:translateY(2px);box-shadow:0 2px 0 rgba(0,0,0,.15)}
+.bbtn:disabled{opacity:.45;cursor:default}
+.reset{background:#e7eaf0;color:#555;font-size:14px;padding:9px 16px}
+.note{margin-top:12px;font-size:14px;color:#a36b00;background:#fff7e6;border-left:4px solid #ffb020;
+  border-radius:8px;padding:10px 12px;min-height:42px}
+.tag{font-size:12px;color:#888}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>P6 示範雛形 · 甲案（地圖 ＋ 5×5 草稿格）</h1>
+  <div class="sub">點下方某座 → 左圖圈出它在地圖的位置 ＋ 右邊 5×5 對應格浮出字母。⚠️ 地圖圈的位置是估算，待校準。</div>
+  <div class="stage">
+    <div class="panel">
+      <h2>① 看地圖（學生的正式工作紙）</h2>
+      <div class="mapbox">
+        <img src="slides/source/map.png" alt="校園地圖">
+        <div class="ring" id="ring-H"></div><div class="ring" id="ring-A"></div>
+        <div class="ring" id="ring-C"></div><div class="ring" id="ring-E"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>② 寫進 5×5 草稿格（H 已給）</h2>
+      <div class="gridwrap">
+        <div></div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px">
+          <div class="collab">一</div><div class="collab">二</div><div class="collab">三</div><div class="collab">四</div><div class="collab">五</div>
+        </div>
+        <div style="display:grid;grid-template-rows:repeat(5,1fr);gap:4px">
+          <div class="rowlab">甲</div><div class="rowlab">乙</div><div class="rowlab">丙</div><div class="rowlab">丁</div><div class="rowlab">戊</div>
+        </div>
+        <div class="grid5" id="grid5"></div>
+      </div>
+    </div>
+  </div>
+  <div class="btns">
+    <span class="tag">點一座：</span>
+    <button class="bbtn" style="background:#2ec97a" data-b="H" disabled>H</button>
+    <button class="bbtn" style="background:#ff5d6c" data-b="A">A</button>
+    <button class="bbtn" style="background:#15c0c9" data-b="C">C</button>
+    <button class="bbtn" style="background:#1e9bff" data-b="E">E</button>
+    <button class="bbtn reset" id="reset">↺ 重來</button>
+  </div>
+  <div class="note" id="note">H 座是起點，已經幫你填在 甲一（左上角）了。</div>
+</div>
+<script>
+const COLOR={H:'#2ec97a',A:'#ff5d6c',C:'#15c0c9',E:'#1e9bff'};
+// cell:[row,col] 1-based；map:[xfrac,yfrac] 地圖上估算位置；span:跨格說明
+const B={
+  H:{cell:[1,1],map:[0.15,0.14],span:''},
+  A:{cell:[3,3],map:[0.52,0.50],span:'A 座跨 2 格（三、四欄）→ 只選 1 格'},
+  C:{cell:[2,4],map:[0.70,0.32],span:'C 座跨 2 格（四、五欄）→ 只選 1 格'},
+  E:{cell:[3,1],map:[0.15,0.50],span:'E 座跨 2 格（丙、丁列）→ 只選 1 格'},
+};
+// 建 5x5
+const grid=document.getElementById('grid5');
+const cells={};
+for(let r=1;r<=5;r++)for(let c=1;c<=5;c++){
+  const d=document.createElement('div');d.className='g5cell';d.id=`c${r}-${c}`;cells[`${r},${c}`]=d;grid.appendChild(d);
+}
+// 預填 H
+function fill(k){
+  const b=B[k];const cell=cells[`${b.cell[0]},${b.cell[1]}`];
+  cell.textContent=k;cell.style.background=COLOR[k];cell.classList.add('filled');
+  const ring=document.getElementById('ring-'+k);
+  ring.style.left=(b.map[0]*100)+'%';ring.style.top=(b.map[1]*100)+'%';
+  ring.style.borderColor=COLOR[k];ring.classList.add('show');
+  document.getElementById('note').textContent=b.span||(k+' 座已填好。');
+}
+fill('H');
+document.querySelectorAll('.bbtn[data-b]').forEach(btn=>btn.addEventListener('click',()=>{
+  const k=btn.dataset.b;fill(k);btn.disabled=true;
+}));
+document.getElementById('reset').addEventListener('click',()=>{
+  for(const k in B){const b=B[k];const cell=cells[`${b.cell[0]},${b.cell[1]}`];
+    if(k!=='H'){cell.textContent='';cell.style.background='#f6f8fc';cell.classList.remove('filled');
+      document.getElementById('ring-'+k).classList.remove('show');}}
+  document.querySelectorAll('.bbtn[data-b]').forEach(b=>{if(b.dataset.b!=='H')b.disabled=false;});
+  document.getElementById('note').textContent='H 座是起點，已經幫你填在 甲一（左上角）了。';
+});
+</script>
+</body>
+</html>
